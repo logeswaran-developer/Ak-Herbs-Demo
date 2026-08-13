@@ -48,11 +48,44 @@ export function AuthProvider({ children }) {
     persist({ role: 'admin', token: data.token, profile: data.admin });
   }
 
+  function updateUserProfile(updates) {
+  setSession((current) => {
+    if (!current || current.role !== "user") {
+      return current;
+    }
+
+    const next = {
+      ...current,
+      profile: {
+        ...current.profile,
+        ...updates,
+      },
+    };
+
+    localStorage.setItem(
+      "ak_session",
+      JSON.stringify(next)
+    );
+
+    return next;
+  });
+}
+
+
   function logout() {
     persist(null);
   }
 
-  const value = { session, loading, loginUser, registerUser, loginAdmin, registerAdmin, logout };
+  const value = {
+  session,
+  loading,
+  loginUser,
+  registerUser,
+  loginAdmin,
+  registerAdmin,
+  updateUserProfile,
+  logout,
+};
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

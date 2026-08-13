@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const CATEGORIES = [
   { name: 'Nuts & Dry Fruits', image: '/images/categories/nuts-dry-fruits.jpg' },
@@ -8,23 +9,44 @@ const CATEGORIES = [
 ];
 
 export default function Home() {
+  const { session } = useAuth();
+
+  const isAdmin = session?.role === 'admin';
+
   return (
     <>
       <div className="home-banner">
         <img src="/images/home-banner.jpg" alt="AK Herbs — natural herbs, nuts, dry fruits and herbal syrup" />
       </div>
 
-      <section className="hero">
-        <div className="hero-inner">
-          <span className="eyebrow">From the House of Kumaaragiri Traders</span>
-          <h1>Herbal wellness, <em>rooted</em> in tradition</h1>
-          <p className="lede">Nuts, dry fruits, Siddha decoctions and handcrafted herbal soaps — three decades of natural care, brought to your everyday life.</p>
-          <div className="hero-actions">
-            <Link to="/product" className="btn btn-primary">Shop the Range</Link>
-            <Link to="/about" className="btn btn-outline-dark">Our Story</Link>
-          </div>
-        </div>
-      </section>
+      {!isAdmin && (
+  <section className="hero">
+    <div className="hero-inner">
+      <span className="eyebrow">
+        From the House of Kumaaragiri Traders
+      </span>
+
+      <h1>
+        Herbal wellness, <em>rooted</em> in tradition
+      </h1>
+
+      <p className="lede">
+        Nuts, dry fruits, Siddha decoctions and handcrafted herbal soaps —
+        three decades of natural care, brought to your everyday life.
+      </p>
+
+      <div className="hero-actions">
+        <Link to="/product" className="btn btn-primary">
+          Shop the Range
+        </Link>
+
+        <Link to="/about" className="btn btn-outline-dark">
+          Our Story
+        </Link>
+      </div>
+    </div>
+  </section>
+)}
 
       <section className="section">
         <div className="wrap">

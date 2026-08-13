@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  useNavigate,
   useSearchParams,
 } from "react-router-dom";
 
@@ -25,6 +26,8 @@ const BACKEND_URL =
   ).replace(/\/api\/?$/, "");
 
 export default function Products() {
+    const navigate = useNavigate();
+
   const [
     searchParams,
     setSearchParams,
@@ -50,7 +53,8 @@ export default function Products() {
   ] = useState("");
 
   const {
-    session,
+  session,
+  updateUserProfile,
   } = useAuth();
 
   useEffect(() => {
@@ -112,52 +116,62 @@ export default function Products() {
         );
 
   async function addToCart(id) {
-    if (
-      session?.role !== "user"
-    ) {
-      alert(
-        "Please login as a customer to add items to your cart."
-      );
-
-      return;
-    }
-
-    try {
-      await api.post(
-        `/cart/${id}`
-      );
-    } catch (error) {
-      console.error(
-        "Add to cart error:",
-        error
-      );
-    }
+  if (session?.role !== "user") {
+    alert(
+      "Please login as a customer to add items to your cart."
+    );
+    return;
   }
 
-  async function toggleWishlist(
-    id
-  ) {
-    if (
-      session?.role !== "user"
-    ) {
-      alert(
-        "Please login as a customer to save items to your wishlist."
-      );
+  try {
+    const { data } = await api.post(
+      `/cart/${id}`
+    );
 
-      return;
-    }
+    updateUserProfile({
+      cart: data.cart || [],
+    });
+  } catch (error) {
+    console.error(
+      "Add to cart error:",
+      error
+    );
 
-    try {
-      await api.post(
-        `/wishlist/${id}`
-      );
-    } catch (error) {
-      console.error(
-        "Wishlist error:",
-        error
-      );
-    }
+    alert(
+      error.response?.data?.message ||
+        "Could not add product to cart."
+    );
   }
+}
+
+  async function toggleWishlist(id) {
+  if (session?.role !== "user") {
+    alert(
+      "Please login as a customer to save items to your wishlist."
+    );
+    return;
+  }
+
+  try {
+    const { data } = await api.post(
+      `/wishlist/${id}`
+    );
+
+    updateUserProfile({
+      wishlist: data.wishlist || [],
+    });
+  } catch (error) {
+    console.error(
+      "Wishlist error:",
+      error
+    );
+
+    alert(
+      error.response?.data?.message ||
+        "Could not update wishlist."
+    );
+  }
+}
 
   function getProductImage(
     product
@@ -251,14 +265,24 @@ export default function Products() {
                       getProductImage(
                         product
                       );
+                    const isWishlisted =
+                      session?.profile?.wishlist?.some(
+                        (item) =>
+                          String(item?._id || item) ===
+                          String(product._id)
+                      );
 
                     return (
                       <div
-                        key={
-                          product._id
-                        }
-                        className="product-card"
-                      >
+                          key={product._id}
+                          className="product-card"
+                          onClick={() =>
+                            navigate(`/product/${product._id}`)
+                          }
+                          style={{
+                            cursor: "pointer",
+                          }}
+                        >
                         <div
                           className="thumb"
                           style={{
@@ -319,24 +343,30 @@ export default function Products() {
                           </span>
 
                           <button
-                            className="fav"
-                            title="Save to wishlist"
-                            onClick={() =>
-                              toggleWishlist(
-                                product._id
-                              )
+                            className={`fav ${isWishlisted ? "active" : ""}`}
+                            title={
+                              isWishlisted
+                                ? "Remove from wishlist"
+                                : "Save to wishlist"
                             }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleWishlist(product._id);
+                            }}
                             style={{
-                              position:
-                                "absolute",
+                              position: "absolute",
                               zIndex: 2,
                             }}
                           >
-                            <svg
+                                                      <svg
                               width="15"
                               height="15"
                               viewBox="0 0 24 24"
-                              fill="none"
+                              fill={
+                                isWishlisted
+                                  ? "currentColor"
+                                  : "none"
+                              }
                               stroke="currentColor"
                               strokeWidth="1.8"
                             >
@@ -380,11 +410,10 @@ export default function Products() {
                             <button
                               className="add-btn"
                               title="Add to cart"
-                              onClick={() =>
-                                addToCart(
-                                  product._id
-                                )
-                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addToCart(product._id);
+                              }}
                             >
                               <svg
                                 width="16"

@@ -6,6 +6,7 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
+import AdminSidebar from "../components/admin/AdminSidebar";
 
 const CATEGORY_OPTIONS = [
   "Nuts & Dry Fruits",
@@ -42,8 +43,14 @@ export default function AdminDashboard() {
     orders: 0,
   });
 
+  const [
+  activeSection,
+  setActiveSection,
+] = useState("dashboard");
+
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [messages, setMessages] = useState([]);
 
   const [form, setForm] =
     useState(INITIAL_FORM);
@@ -94,10 +101,12 @@ export default function AdminDashboard() {
         statsRes,
         usersRes,
         productsRes,
+        messagesRes,
       ] = await Promise.all([
         api.get("/admin/stats"),
         api.get("/admin/users"),
         api.get("/products"),
+        api.get("/contact"),
       ]);
 
       setStats(statsRes.data);
@@ -106,6 +115,10 @@ export default function AdminDashboard() {
       );
       setProducts(
         productsRes.data.products || []
+      );
+
+      setMessages(
+        messagesRes.data.messages || []
       );
     } catch (error) {
       console.error(
@@ -351,47 +364,97 @@ export default function AdminDashboard() {
   }
 
   return (
-    <section className="dashboard-shell">
-      <div className="wrap">
-        {/* Admin Header */}
+    <section
+      className="dashboard-shell"
+      style={{
+        padding: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          height: "100vh",
+          overflow: "hidden",
+          background: "#f7f3e8",
+        }}
+      >
+        <AdminSidebar
+          activeSection={activeSection}
+          setActiveSection={setActiveSection}
+          logout={logout}
+        />
 
-        <div
-          className="dashboard-card"
+        <main
+          className="admin-main-content"
           style={{
-            marginBottom: 28,
-            display: "flex",
-            justifyContent:
-              "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 16,
+            flex: 1,
+            minWidth: 0,
+            height: "100vh",
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: "32px",
           }}
         >
-          <div>
-            <h2
-              style={{
-                color:
-                  "var(--leaf-dark)",
-                fontSize: 24,
-              }}
-            >
-              Welcome,{" "}
-              {session.profile.name}
-            </h2>
+          {activeSection === "dashboard" && (
+            <>
+          {/* Admin Header */}
 
-            <p style={{ marginTop: 6 }}>
-              {session.profile.email} ·
-              Store Administrator
+        {/* Admin Header */}
+
+        <div className="admin-dashboard-header">
+          <div className="admin-welcome">
+            <h1>
+              Welcome Back, {session.profile.name}{" "}
+              <span className="admin-wave">👋</span>
+            </h1>
+
+            <p>
+              Manage your AK Herbs store from one place.
             </p>
           </div>
 
-          <button
-            type="button"
-            className="btn btn-outline-dark"
-            onClick={logout}
-          >
-            Logout
-          </button>
+          <div className="admin-header-actions">
+            <div className="admin-search">
+              <span>⌕</span>
+
+              <input
+                type="text"
+                placeholder="Search..."
+                aria-label="Search admin panel"
+              />
+            </div>
+
+            <button
+              type="button"
+              className="admin-notification-btn"
+              aria-label="Customer enquiries"
+              onClick={() => setActiveSection("messages")}
+              title={`${messages.length} customer enquiries`}
+            >
+              🔔
+              {messages.length > 0 && (
+                <span className="admin-notification-count">
+                  {messages.length > 99 ? "99+" : messages.length}
+                </span>
+              )}
+            </button>
+
+            <div className="admin-profile-card">
+              <div className="admin-profile-logo">
+                AK
+              </div>
+
+              <div className="admin-profile-info">
+                <strong>
+                  {session.profile.name}
+                </strong>
+
+                <span>
+                  Administrator
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Statistics */}
@@ -499,6 +562,137 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Recent Products + New Customers */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+            gap: 24,
+            marginBottom: 36,
+          }}
+        >
+          <div className="dashboard-card">
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <h3
+                style={{
+                  color: "var(--leaf-dark)",
+                  margin: 0,
+                }}
+              >
+                Recent Products
+              </h3>
+
+              <button
+                type="button"
+                className="btn btn-outline-dark"
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 11,
+                }}
+                onClick={() => setActiveSection("products")}
+              >
+                View All →
+              </button>
+            </div>
+
+            {products.length ? (
+              <div style={{ overflowX: "auto" }}>
+                <table className="table-simple">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.slice(0, 5).map((product) => (
+                      <tr key={product._id}>
+                        <td>{product.name}</td>
+                        <td>{product.cat}</td>
+                        <td>₹{product.price}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>No products added yet.</p>
+            )}
+          </div>
+
+          <div className="dashboard-card">
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <h3
+                style={{
+                  color: "var(--leaf-dark)",
+                  margin: 0,
+                }}
+              >
+                New Customers
+              </h3>
+
+              <button
+                type="button"
+                className="btn btn-outline-dark"
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 11,
+                }}
+                onClick={() => setActiveSection("customers")}
+              >
+                View All →
+              </button>
+            </div>
+
+            {users.length ? (
+              <div style={{ overflowX: "auto" }}>
+                <table className="table-simple">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.slice(0, 5).map((user) => (
+                      <tr key={user._id}>
+                        <td>{user.name}</td>
+                        <td>{user.email}</td>
+                        <td>{user.phone || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>No customers have registered yet.</p>
+            )}
+          </div>
+        </div>
+
+            </>
+          )}
+
+          {activeSection === "products" && (
+            <>
         {/* Add Product */}
 
         <div
@@ -862,6 +1056,11 @@ export default function AdminDashboard() {
           </table>
         </div>
 
+            </>
+          )}
+
+          {activeSection === "customers" && (
+            <>
         {/* Customers */}
 
         <div className="dashboard-card">
@@ -918,6 +1117,112 @@ export default function AdminDashboard() {
             </p>
           )}
         </div>
+            </>
+          )}
+
+
+          {activeSection === "messages" && (
+            <div className="dashboard-card">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  marginBottom: 22,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <h3
+                    style={{
+                      color: "var(--leaf-dark)",
+                      marginBottom: 5,
+                    }}
+                  >
+                    Customer Enquiries
+                  </h3>
+
+                  <p>
+                    Messages received from the Contact page.
+                  </p>
+                </div>
+
+                <span className="pill green">
+                  {messages.length} Messages
+                </span>
+              </div>
+
+              {messages.length ? (
+                <div style={{ overflowX: "auto" }}>
+                  <table className="table-simple">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Message</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {messages.map((message) => (
+                        <tr key={message._id}>
+                          <td>
+                            <strong>{message.name}</strong>
+                          </td>
+
+                          <td>
+                            <div>{message.email}</div>
+                            <div
+                              style={{
+                                marginTop: 4,
+                                fontSize: 12,
+                                color: "var(--ink-soft)",
+                              }}
+                            >
+                              {message.phone || "No phone"}
+                            </div>
+                          </td>
+
+                          <td
+                            style={{
+                              minWidth: 260,
+                              whiteSpace: "normal",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {message.message}
+                          </td>
+
+                          <td style={{ whiteSpace: "nowrap" }}>
+                            {message.createdAt
+                              ? new Date(
+                                  message.createdAt
+                                ).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  }
+                                )
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  No customer enquiries yet.
+                </div>
+              )}
+            </div>
+          )}
+
+        </main>
       </div>
     </section>
   );
