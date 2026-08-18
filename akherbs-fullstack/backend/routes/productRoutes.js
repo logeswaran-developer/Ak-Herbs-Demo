@@ -290,6 +290,138 @@ router.post(
 
 /*
 |--------------------------------------------------------------------------
+| PUT /api/products/:id
+|--------------------------------------------------------------------------
+| Admin only
+| Content-Type: multipart/form-data
+| Image field name: images (optional — puthu images select pannala na,
+| pazhaya images amaidhiyaa irukum)
+*/
+
+router.put(
+  "/:id",
+  protect,
+  requireAdmin,
+
+  (req, res, next) => {
+    uploadProductImages.array(
+      "images",
+      5
+    )(req, res, (error) => {
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          message:
+            error.message ||
+            "Image upload failed.",
+        });
+      }
+
+      next();
+    });
+  },
+
+  async (req, res) => {
+    try {
+      const product =
+        await Product.findById(
+          req.params.id
+        );
+
+      if (!product) {
+        deleteUploadedFiles(req.files);
+
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product not found.",
+        });
+      }
+
+      const {
+        name,
+        cat,
+        price,
+        unit,
+        desc,
+      } = req.body;
+
+      if (
+        !name?.trim() ||
+        !cat?.trim() ||
+        price === undefined ||
+        price === null ||
+        price === "" ||
+        !unit?.trim() ||
+        !desc?.trim()
+      ) {
+        deleteUploadedFiles(req.files);
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Name, category, price, unit and description are required.",
+        });
+      }
+
+      const numericPrice = Number(price);
+
+      if (
+        Number.isNaN(numericPrice) ||
+        numericPrice < 0
+      ) {
+        deleteUploadedFiles(req.files);
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Price must be a valid positive number.",
+        });
+      }
+
+      // Puthu images select pannirundha mattum, pazhaya images delete
+      // pannitu puthusa vைchikanum. Illana pazhaya images amaidhiyaa vைchikanum.
+      let images = product.images;
+
+      if (req.files && req.files.length > 0) {
+        deleteProductImages(product.images);
+
+        images = req.files.map(
+          (file) =>
+            `/uploads/products/${file.filename}`
+        );
+      }
+
+      product.name = name.trim();
+      product.cat = cat.trim();
+      product.price = numericPrice;
+      product.unit = unit.trim();
+      product.desc = desc.trim();
+      product.images = images;
+
+      await product.save();
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Product updated successfully.",
+        product,
+      });
+    } catch (error) {
+      deleteUploadedFiles(req.files);
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to update product.",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
 | DELETE /api/products/:id
 |--------------------------------------------------------------------------
 | Admin only

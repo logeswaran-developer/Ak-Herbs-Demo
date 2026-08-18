@@ -66,6 +66,8 @@ export default function AdminDashboard() {
   const [addingProduct, setAddingProduct] =
     useState(false);
 
+  const [editingId, setEditingId] = useState(null);
+
   /*
   |--------------------------------------------------------------------------
   | Image previews
@@ -239,7 +241,7 @@ export default function AdminDashboard() {
 
   /*
   |--------------------------------------------------------------------------
-  | Add Product
+  | Add / Update Product
   |--------------------------------------------------------------------------
   */
 
@@ -293,18 +295,33 @@ export default function AdminDashboard() {
         );
       });
 
-      await api.post(
-        "/products",
-        formData
-      );
+      if (editingId) {
+        // Edit mode — existing product-ai update pannum
+        await api.put(
+          `/products/${editingId}`,
+          formData
+        );
 
-      setAddMsg({
-        type: "success",
-        text: `"${form.name}" was added to the catalogue.`,
-      });
+        setAddMsg({
+          type: "success",
+          text: `"${form.name}" was updated successfully.`,
+        });
+      } else {
+        // Add mode — puthu product create pannum
+        await api.post(
+          "/products",
+          formData
+        );
+
+        setAddMsg({
+          type: "success",
+          text: `"${form.name}" was added to the catalogue.`,
+        });
+      }
 
       setForm(INITIAL_FORM);
       setImages([]);
+      setEditingId(null);
 
       await loadAll();
     } catch (error) {
@@ -313,11 +330,55 @@ export default function AdminDashboard() {
         text:
           error.response?.data
             ?.message ||
-          "Could not add product.",
+          (editingId
+            ? "Could not update product."
+            : "Could not add product."),
       });
     } finally {
       setAddingProduct(false);
     }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Edit Product
+  |--------------------------------------------------------------------------
+  */
+
+  function handleEdit(product) {
+    setEditingId(product._id);
+
+    setForm({
+      name: product.name || "",
+      cat: product.cat || CATEGORY_OPTIONS[0],
+      price: product.price ?? "",
+      unit: product.unit || "",
+      desc: product.desc || "",
+    });
+
+    // Naam puthu images select panna varaikkum, pazhaya images-ai
+    // amaidhiyaa vைchikanum, so image field-ai empty-a vைkanum
+    setImages([]);
+
+    setAddMsg(null);
+
+    // Add/Edit form irukra "products" section-ku poidum
+    setActiveSection("products");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Cancel Edit
+  |--------------------------------------------------------------------------
+  */
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(INITIAL_FORM);
+    setImages([]);
+    setAddMsg(null);
   }
 
   /*
@@ -693,7 +754,7 @@ export default function AdminDashboard() {
 
           {activeSection === "products" && (
             <>
-        {/* Add Product */}
+        {/* Add / Edit Product */}
 
         <div
           className="dashboard-card"
@@ -706,7 +767,9 @@ export default function AdminDashboard() {
               marginBottom: 18,
             }}
           >
-            Add New Product
+            {editingId
+              ? "Edit Product"
+              : "Add New Product"}
           </h3>
 
           {addMsg && (
@@ -821,6 +884,9 @@ export default function AdminDashboard() {
             <div className="field">
               <label>
                 Product Images
+                {editingId
+                  ? " (puthu image select pannala na, pazhaya images amaidhiyaa irukum)"
+                  : ""}
               </label>
 
               <input
@@ -955,15 +1021,38 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={addingProduct}
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
             >
-              {addingProduct
-                ? "Adding Product..."
-                : "Add Product"}
-            </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={addingProduct}
+              >
+                {addingProduct
+                  ? editingId
+                    ? "Updating Product..."
+                    : "Adding Product..."
+                  : editingId
+                  ? "Update Product"
+                  : "Add Product"}
+              </button>
+
+              {editingId && (
+                <button
+                  type="button"
+                  className="btn btn-outline-dark"
+                  onClick={cancelEdit}
+                  disabled={addingProduct}
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -1023,22 +1112,46 @@ export default function AdminDashboard() {
                     </td>
 
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-outline-dark"
+                      <div
                         style={{
-                          padding:
-                            "6px 16px",
-                          fontSize: 11,
+                          display: "flex",
+                          gap: 8,
                         }}
-                        onClick={() =>
-                          handleRemove(
-                            product._id
-                          )
-                        }
                       >
-                        Remove
-                      </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-dark"
+                          style={{
+                            padding:
+                              "6px 16px",
+                            fontSize: 11,
+                          }}
+                          onClick={() =>
+                            handleEdit(
+                              product
+                            )
+                          }
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-outline-dark"
+                          style={{
+                            padding:
+                              "6px 16px",
+                            fontSize: 11,
+                          }}
+                          onClick={() =>
+                            handleRemove(
+                              product._id
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
