@@ -51,6 +51,17 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [categories, setCategories] = useState([]);
+
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
+    order: "",
+    isActive: true,
+  });
+  const [categoryImage, setCategoryImage] = useState(null);
+  const [categoryMsg, setCategoryMsg] = useState(null);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
 
   const [form, setForm] =
     useState(INITIAL_FORM);
@@ -104,11 +115,13 @@ export default function AdminDashboard() {
         usersRes,
         productsRes,
         messagesRes,
+        categoriesRes,
       ] = await Promise.all([
         api.get("/admin/stats"),
         api.get("/admin/users"),
         api.get("/products"),
         api.get("/contact"),
+        api.get("/categories/admin/all"),
       ]);
 
       setStats(statsRes.data);
@@ -121,6 +134,10 @@ export default function AdminDashboard() {
 
       setMessages(
         messagesRes.data.messages || []
+      );
+
+      setCategories(
+        categoriesRes.data.categories || []
       );
     } catch (error) {
       console.error(
@@ -408,6 +425,211 @@ export default function AdminDashboard() {
         error.response?.data
           ?.message ||
           "Product delete panna mudiyala."
+      );
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Category helpers
+  |--------------------------------------------------------------------------
+  */
+
+  const categoryOptions = categories.length
+    ? categories
+        .filter((category) => category.isActive)
+        .map((category) => category.name)
+    : CATEGORY_OPTIONS;
+
+  const getCategoryImageUrl = (imagePath) => {
+    if (!imagePath) return "";
+
+    if (
+      imagePath.startsWith("http://") ||
+      imagePath.startsWith("https://")
+    ) {
+      return imagePath;
+    }
+
+    const apiBase =
+      import.meta.env.VITE_API_URL ||
+      "http://localhost:5000/api";
+
+    const serverBase = apiBase.replace(
+      /\/api\/?$/,
+      ""
+    );
+
+    return `${serverBase}${imagePath}`;
+  };
+
+  function resetCategoryForm() {
+    setCategoryForm({
+      name: "",
+      order: "",
+      isActive: true,
+    });
+    setCategoryImage(null);
+    setEditingCategoryId(null);
+    setCategoryMsg(null);
+  }
+
+  function handleCategoryImageChange(event) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      setCategoryImage(null);
+      return;
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setCategoryMsg({
+        type: "error",
+        text: "JPG, JPEG, PNG or WEBP image mattum allowed.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setCategoryMsg({
+        type: "error",
+        text: "Category image maximum 5 MB mattum irukkanum.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    setCategoryMsg(null);
+    setCategoryImage(file);
+  }
+
+  async function handleSaveCategory(event) {
+    event.preventDefault();
+    setCategoryMsg(null);
+
+    if (!categoryForm.name.trim()) {
+      setCategoryMsg({
+        type: "error",
+        text: "Category name required.",
+      });
+      return;
+    }
+
+    if (!editingCategoryId && !categoryImage) {
+      setCategoryMsg({
+        type: "error",
+        text: "Category image required.",
+      });
+      return;
+    }
+
+    try {
+      setSavingCategory(true);
+
+      const formData = new FormData();
+      formData.append(
+        "name",
+        categoryForm.name.trim()
+      );
+      formData.append(
+        "order",
+        categoryForm.order === ""
+          ? "0"
+          : String(Number(categoryForm.order))
+      );
+      formData.append(
+        "isActive",
+        String(categoryForm.isActive)
+      );
+
+      if (categoryImage) {
+        formData.append("image", categoryImage);
+      }
+
+      if (editingCategoryId) {
+        await api.put(
+          `/categories/${editingCategoryId}`,
+          formData
+        );
+
+        setCategoryMsg({
+          type: "success",
+          text: "Category updated successfully.",
+        });
+      } else {
+        await api.post(
+          "/categories",
+          formData
+        );
+
+        setCategoryMsg({
+          type: "success",
+          text: "Category added successfully.",
+        });
+      }
+
+      setCategoryForm({
+        name: "",
+        order: "",
+        isActive: true,
+      });
+      setCategoryImage(null);
+      setEditingCategoryId(null);
+
+      await loadAll();
+    } catch (error) {
+      setCategoryMsg({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "Category save panna mudiyala.",
+      });
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  function handleEditCategory(category) {
+    setEditingCategoryId(category._id);
+
+    setCategoryForm({
+      name: category.name || "",
+      order: category.order ?? "",
+      isActive: category.isActive !== false,
+    });
+
+    setCategoryImage(null);
+    setCategoryMsg(null);
+    setActiveSection("categories");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  async function handleDeleteCategory(category) {
+    const confirmed = window.confirm(
+      `"${category.name}" category-ai delete panna sure-ah?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await api.delete(
+        `/categories/${category._id}`
+      );
+
+      if (editingCategoryId === category._id) {
+        resetCategoryForm();
+      }
+
+      await loadAll();
+    } catch (error) {
+      window.alert(
+        error.response?.data?.message ||
+        "Category delete panna mudiyala."
       );
     }
   }
@@ -813,7 +1035,7 @@ export default function AdminDashboard() {
                   )}
                   required
                 >
-                  {CATEGORY_OPTIONS.map(
+                  {categoryOptions.map(
                     (category) => (
                       <option
                         key={category}
@@ -1230,6 +1452,382 @@ export default function AdminDashboard() {
             </p>
           )}
         </div>
+            </>
+          )}
+
+
+          {activeSection === "categories" && (
+            <>
+              <div
+                className="dashboard-card"
+                style={{ marginBottom: 28 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    flexWrap: "wrap",
+                    marginBottom: 20,
+                  }}
+                >
+                  <div>
+                    <h3
+                      style={{
+                        color: "var(--leaf-dark)",
+                        marginBottom: 5,
+                      }}
+                    >
+                      {editingCategoryId
+                        ? "Edit Category"
+                        : "Add New Category"}
+                    </h3>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--ink-soft)",
+                      }}
+                    >
+                      Home page Shop by Category section-ai inga manage pannalaam.
+                    </p>
+                  </div>
+
+                  <span className="pill green">
+                    {categories.length} Categories
+                  </span>
+                </div>
+
+                {categoryMsg && (
+                  <div
+                    className={`form-msg ${categoryMsg.type}`}
+                    style={{ marginBottom: 18 }}
+                  >
+                    {categoryMsg.text}
+                  </div>
+                )}
+
+                <form
+                  onSubmit={handleSaveCategory}
+                  encType="multipart/form-data"
+                >
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Category Name</label>
+
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Herbal Powders"
+                        value={categoryForm.name}
+                        onChange={(event) =>
+                          setCategoryForm((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div className="field">
+                      <label>Display Order</label>
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="e.g. 1"
+                        value={categoryForm.order}
+                        onChange={(event) =>
+                          setCategoryForm((current) => ({
+                            ...current,
+                            order: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field-row">
+                    <div className="field">
+                      <label>
+                        Category Image
+                        {editingCategoryId
+                          ? " (optional while editing)"
+                          : ""}
+                      </label>
+
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                        onChange={handleCategoryImageChange}
+                      />
+
+                      <small
+                        style={{
+                          display: "block",
+                          marginTop: 7,
+                          color: "#6b7280",
+                        }}
+                      >
+                        One image. JPG, PNG or WEBP. Maximum 5 MB.
+                      </small>
+
+                      {categoryImage && (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          <img
+                            src={URL.createObjectURL(categoryImage)}
+                            alt="Category preview"
+                            style={{
+                              width: 76,
+                              height: 76,
+                              objectFit: "cover",
+                              borderRadius: "50%",
+                              border: "3px solid #e7eadc",
+                            }}
+                          />
+
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "#667085",
+                            }}
+                          >
+                            {categoryImage.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="field">
+                      <label>Status</label>
+
+                      <select
+                        value={
+                          categoryForm.isActive
+                            ? "active"
+                            : "inactive"
+                        }
+                        onChange={(event) =>
+                          setCategoryForm((current) => ({
+                            ...current,
+                            isActive:
+                              event.target.value === "active",
+                          }))
+                        }
+                      >
+                        <option value="active">
+                          Active
+                        </option>
+
+                        <option value="inactive">
+                          Inactive
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={savingCategory}
+                    >
+                      {savingCategory
+                        ? "Saving..."
+                        : editingCategoryId
+                        ? "Update Category"
+                        : "Add Category"}
+                    </button>
+
+                    {editingCategoryId && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-dark"
+                        onClick={resetCategoryForm}
+                        disabled={savingCategory}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              <div className="dashboard-card">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    flexWrap: "wrap",
+                    marginBottom: 18,
+                  }}
+                >
+                  <div>
+                    <h3
+                      style={{
+                        color: "var(--leaf-dark)",
+                        marginBottom: 5,
+                      }}
+                    >
+                      Manage Categories
+                    </h3>
+
+                    <p style={{ margin: 0 }}>
+                      Active categories customer home page-la show aagum.
+                    </p>
+                  </div>
+                </div>
+
+                {categories.length ? (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(190px, 1fr))",
+                      gap: 18,
+                    }}
+                  >
+                    {categories.map((category) => (
+                      <div
+                        key={category._id}
+                        style={{
+                          border: "1px solid #e5e7d8",
+                          borderRadius: 16,
+                          background: "#fff",
+                          padding: 16,
+                          textAlign: "center",
+                        }}
+                      >
+                        <img
+                          src={getCategoryImageUrl(
+                            category.image
+                          )}
+                          alt={category.name}
+                          style={{
+                            width: 118,
+                            height: 118,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            display: "block",
+                            margin: "0 auto 14px",
+                            border: "4px solid #f1f3e8",
+                          }}
+                        />
+
+                        <h4
+                          style={{
+                            margin: "0 0 6px",
+                            color: "var(--leaf-dark)",
+                            fontSize: 15,
+                          }}
+                        >
+                          {category.name}
+                        </h4>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: 7,
+                            marginBottom: 14,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 11,
+                              padding: "4px 8px",
+                              borderRadius: 20,
+                              background:
+                                category.isActive
+                                  ? "#edf5e8"
+                                  : "#f3f4f6",
+                              color:
+                                category.isActive
+                                  ? "#365719"
+                                  : "#6b7280",
+                            }}
+                          >
+                            {category.isActive
+                              ? "Active"
+                              : "Inactive"}
+                          </span>
+
+                          <span
+                            style={{
+                              fontSize: 11,
+                              padding: "4px 8px",
+                              borderRadius: 20,
+                              background: "#f7f3e8",
+                              color: "#6b5a38",
+                            }}
+                          >
+                            Order {category.order ?? 0}
+                          </span>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: 8,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-outline-dark"
+                            style={{
+                              padding: "6px 14px",
+                              fontSize: 11,
+                            }}
+                            onClick={() =>
+                              handleEditCategory(category)
+                            }
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-outline-dark"
+                            style={{
+                              padding: "6px 14px",
+                              fontSize: 11,
+                            }}
+                            onClick={() =>
+                              handleDeleteCategory(category)
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    No categories added yet. First category-ai mela irukkura form-la add pannunga.
+                  </div>
+                )}
+              </div>
             </>
           )}
 
