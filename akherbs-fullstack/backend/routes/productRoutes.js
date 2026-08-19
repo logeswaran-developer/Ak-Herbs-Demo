@@ -288,6 +288,87 @@ router.post(
   }
 );
 
+
+/*
+|--------------------------------------------------------------------------
+| PUT /api/products/:id
+|--------------------------------------------------------------------------
+| Admin only
+| Update existing product details & optional images
+*/
+
+router.put(
+  "/:id",
+  protect,
+  requireAdmin,
+
+  (req, res, next) => {
+    uploadProductImages.array("images", 5)(req, res, (error) => {
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          message: error.message || "Image upload failed.",
+        });
+      }
+      next();
+    });
+  },
+
+  async (req, res) => {
+    try {
+      const product = await Product.findById(req.params.id);
+
+      if (!product) {
+        deleteUploadedFiles(req.files);
+        return res.status(404).json({
+          success: false,
+          message: "Product not found.",
+        });
+      }
+
+      const { name, cat, price, unit, desc } = req.body;
+
+      if (name?.trim()) product.name = name.trim();
+      if (cat?.trim()) product.cat = cat.trim();
+      if (price !== undefined && price !== null && price !== "") {
+        const numericPrice = Number(price);
+        if (Number.isNaN(numericPrice) || numericPrice < 0) {
+          deleteUploadedFiles(req.files);
+          return res.status(400).json({
+            success: false,
+            message: "Price must be a valid positive number.",
+          });
+        }
+        product.price = numericPrice;
+      }
+      if (unit?.trim()) product.unit = unit.trim();
+      if (desc?.trim()) product.desc = desc.trim();
+
+      if (req.files && req.files.length > 0) {
+        deleteProductImages(product.images);
+        product.images = req.files.map(
+          (file) => `/uploads/products/${file.filename}`
+        );
+      }
+
+      await product.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Product updated successfully.",
+        product,
+      });
+    } catch (error) {
+      deleteUploadedFiles(req.files);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to update product.",
+        error: error.message,
+      });
+    }
+  }
+);
+
 /*
 |--------------------------------------------------------------------------
 | DELETE /api/products/:id

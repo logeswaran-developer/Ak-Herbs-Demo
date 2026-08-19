@@ -121,6 +121,14 @@ export default function Header() {
                   Contact
                 </NavLink>
               </li>
+
+              {session?.role === 'user' && (
+                <li>
+                  <NavLink to="/orders">
+                    My Orders
+                  </NavLink>
+                </li>
+              )}
             </ul>
           </nav>
 
@@ -148,8 +156,8 @@ export default function Header() {
               </span>
             </button>
 
-            <button
-              type="button"
+            <Link
+              to={session ? "/cart" : "/login"}
               className="icon-btn"
               title="Cart"
             >
@@ -179,7 +187,7 @@ export default function Header() {
               <span className="count">
                 {cartCount}
               </span>
-            </button>
+            </Link>
 
             <Link
               to={acctHref}

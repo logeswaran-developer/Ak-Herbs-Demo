@@ -13,6 +13,14 @@ const CATEGORY_OPTIONS = [
   "Herbal Products",
   "Herbal Soap",
   "Wellness Syrups",
+  "Spices & Masalas",
+  "Essential Oils",
+  "Herbal Powders",
+  "Herbal Tea & Drinks",
+  "Skin Care",
+  "Hair Care",
+  "Health Supplements",
+  "Combo Packs",
 ];
 
 const MAX_IMAGES = 5;
@@ -51,6 +59,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [orders, setOrders] = useState([]);
 
   const [form, setForm] =
     useState(INITIAL_FORM);
@@ -65,6 +74,13 @@ export default function AdminDashboard() {
 
   const [addingProduct, setAddingProduct] =
     useState(false);
+
+  /* Edit Product States */
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editForm, setEditForm] = useState(INITIAL_FORM);
+  const [editImages, setEditImages] = useState([]);
+  const [updatingProduct, setUpdatingProduct] = useState(false);
+  const [editMsg, setEditMsg] = useState(null);
 
   /*
   |--------------------------------------------------------------------------
@@ -102,11 +118,13 @@ export default function AdminDashboard() {
         usersRes,
         productsRes,
         messagesRes,
+        ordersRes,
       ] = await Promise.all([
         api.get("/admin/stats"),
         api.get("/admin/users"),
         api.get("/products"),
         api.get("/contact"),
+        api.get("/admin/orders"),
       ]);
 
       setStats(statsRes.data);
@@ -116,9 +134,11 @@ export default function AdminDashboard() {
       setProducts(
         productsRes.data.products || []
       );
-
       setMessages(
         messagesRes.data.messages || []
+      );
+      setOrders(
+        ordersRes.data.orders || []
       );
     } catch (error) {
       console.error(
@@ -348,6 +368,68 @@ export default function AdminDashboard() {
           ?.message ||
           "Product delete panna mudiyala."
       );
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Edit Product Handlers
+  |--------------------------------------------------------------------------
+  */
+
+  function startEdit(product) {
+    setEditingProduct(product);
+    setEditForm({
+      name: product.name || "",
+      cat: product.cat || CATEGORY_OPTIONS[0],
+      price: product.price ? String(product.price) : "",
+      unit: product.unit || "",
+      desc: product.desc || "",
+    });
+    setEditImages([]);
+    setEditMsg(null);
+  }
+
+  function updateEditField(field) {
+    return (event) => {
+      setEditForm((current) => ({
+        ...current,
+        [field]: event.target.value,
+      }));
+    };
+  }
+
+  async function handleUpdateProduct(event) {
+    event.preventDefault();
+    setEditMsg(null);
+
+    if (!editingProduct) return;
+
+    try {
+      setUpdatingProduct(true);
+
+      const formData = new FormData();
+      formData.append("name", editForm.name.trim());
+      formData.append("cat", editForm.cat);
+      formData.append("price", String(Number(editForm.price)));
+      formData.append("unit", editForm.unit.trim());
+      formData.append("desc", editForm.desc.trim());
+
+      editImages.forEach((image) => {
+        formData.append("images", image);
+      });
+
+      await api.put(`/products/${editingProduct._id}`, formData);
+
+      await loadAll();
+      setEditingProduct(null);
+    } catch (error) {
+      setEditMsg({
+        type: "error",
+        text: error.response?.data?.message || "Could not update product.",
+      });
+    } finally {
+      setUpdatingProduct(false);
     }
   }
 
@@ -827,6 +909,7 @@ export default function AdminDashboard() {
                 type="file"
                 accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                 multiple
+                required={images.length === 0}
                 onChange={
                   handleImageChange
                 }
@@ -955,15 +1038,30 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={addingProduct}
-            >
-              {addingProduct
-                ? "Adding Product..."
-                : "Add Product"}
-            </button>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={addingProduct}
+              >
+                {addingProduct
+                  ? "Adding Product..."
+                  : "Add Product"}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-outline-dark"
+                disabled={addingProduct}
+                onClick={() => {
+                  setForm(INITIAL_FORM);
+                  setImages([]);
+                  setAddMsg(null);
+                }}
+              >
+                Reset Form
+              </button>
+            </div>
           </form>
         </div>
 
@@ -1023,22 +1121,35 @@ export default function AdminDashboard() {
                     </td>
 
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-outline-dark"
-                        style={{
-                          padding:
-                            "6px 16px",
-                          fontSize: 11,
-                        }}
-                        onClick={() =>
-                          handleRemove(
-                            product._id
-                          )
-                        }
-                      >
-                        Remove
-                      </button>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          style={{
+                            padding: "6px 14px",
+                            fontSize: 11,
+                          }}
+                          onClick={() => startEdit(product)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-outline-dark"
+                          style={{
+                            padding: "6px 14px",
+                            fontSize: 11,
+                          }}
+                          onClick={() =>
+                            handleRemove(
+                              product._id
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1120,6 +1231,371 @@ export default function AdminDashboard() {
             </>
           )}
 
+          {activeSection === "categories" && (
+            <>
+              {/* Categories Header */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 28,
+                  flexWrap: "wrap",
+                  gap: 16,
+                }}
+              >
+                <div>
+                  <h2
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      color: "var(--leaf-dark)",
+                      margin: 0,
+                      fontSize: 24,
+                    }}
+                  >
+                    📂 Categories
+                  </h2>
+                  <p
+                    style={{
+                      color: "var(--ink-soft)",
+                      marginTop: 6,
+                      fontSize: 14,
+                    }}
+                  >
+                    All product categories available in your store
+                  </p>
+                </div>
+
+                <span
+                  className="pill green"
+                  style={{ fontSize: 13, padding: "6px 16px" }}
+                >
+                  {CATEGORY_OPTIONS.length} Categories
+                </span>
+              </div>
+
+              {/* Categories Grid */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(280px, 1fr))",
+                  gap: 20,
+                  marginBottom: 36,
+                }}
+              >
+                {CATEGORY_OPTIONS.map((cat, idx) => {
+                  const catIcons = [
+                    "🥜", "🌿", "🧼", "🍯",
+                    "🌶️", "💧", "🫘", "🍵",
+                    "✨", "💆", "💊", "📦",
+                  ];
+                  const catColors = [
+                    "#fef3c7", "#d1fae5", "#e0e7ff", "#fce7f3",
+                    "#fee2e2", "#dbeafe", "#fde68a", "#d1fae5",
+                    "#ede9fe", "#fce7f3", "#cffafe", "#f3f4f6",
+                  ];
+                  const catBorders = [
+                    "#f59e0b", "#10b981", "#6366f1", "#ec4899",
+                    "#ef4444", "#3b82f6", "#d97706", "#059669",
+                    "#8b5cf6", "#db2777", "#06b6d4", "#9ca3af",
+                  ];
+
+                  const productCount = products.filter(
+                    (p) => p.cat === cat
+                  ).length;
+
+                  return (
+                    <div
+                      key={cat}
+                      className="dashboard-card"
+                      style={{
+                        borderLeft: `4px solid ${
+                          catBorders[idx % catBorders.length]
+                        }`,
+                        background: `linear-gradient(135deg, #fff 60%, ${
+                          catColors[idx % catColors.length]
+                        })`,
+                        transition: "transform 0.2s, box-shadow 0.2s",
+                        cursor: "default",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform =
+                          "translateY(-3px)";
+                        e.currentTarget.style.boxShadow =
+                          "0 8px 25px rgba(0,0,0,0.1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform =
+                          "translateY(0)";
+                        e.currentTarget.style.boxShadow = "";
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 14,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 12,
+                            background:
+                              catColors[idx % catColors.length],
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 24,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {catIcons[idx % catIcons.length]}
+                        </div>
+
+                        <div style={{ minWidth: 0 }}>
+                          <h4
+                            style={{
+                              margin: 0,
+                              color: "var(--leaf-dark)",
+                              fontSize: 15,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {cat}
+                          </h4>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "var(--ink-soft)",
+                            }}
+                          >
+                            {productCount}{" "}
+                            {productCount === 1
+                              ? "product"
+                              : "products"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          width: "100%",
+                          height: 4,
+                          borderRadius: 4,
+                          background: "#e5e7eb",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${
+                              products.length
+                                ? Math.max(
+                                    (productCount /
+                                      products.length) *
+                                      100,
+                                    productCount > 0 ? 8 : 0
+                                  )
+                                : 0
+                            }%`,
+                            height: "100%",
+                            borderRadius: 4,
+                            background:
+                              catBorders[
+                                idx % catBorders.length
+                              ],
+                            transition: "width 0.5s ease",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Category Summary Table */}
+              <div className="dashboard-card">
+                <h3
+                  style={{
+                    color: "var(--leaf-dark)",
+                    marginBottom: 16,
+                  }}
+                >
+                  Category Summary
+                </h3>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table className="table-simple">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Category Name</th>
+                        <th>Products</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {CATEGORY_OPTIONS.map((cat, idx) => {
+                        const count = products.filter(
+                          (p) => p.cat === cat
+                        ).length;
+
+                        return (
+                          <tr key={cat}>
+                            <td>{idx + 1}</td>
+                            <td>
+                              <strong>{cat}</strong>
+                            </td>
+                            <td>{count}</td>
+                            <td>
+                              <span
+                                className={`pill ${
+                                  count > 0
+                                    ? "green"
+                                    : ""
+                                }`}
+                                style={
+                                  count === 0
+                                    ? {
+                                        background:
+                                          "#f3f4f6",
+                                        color:
+                                          "#6b7280",
+                                      }
+                                    : {}
+                                }
+                              >
+                                {count > 0
+                                  ? "Active"
+                                  : "Empty"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeSection === "orders" && (
+            <div className="dashboard-card">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  marginBottom: 22,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <h3 style={{ color: "var(--leaf-dark)", marginBottom: 5 }}>
+                    Customer Orders Management
+                  </h3>
+                  <p>Track and manage customer order status.</p>
+                </div>
+                <span className="pill green">{orders.length} Orders Total</span>
+              </div>
+
+              {orders.length ? (
+                <div style={{ overflowX: "auto" }}>
+                  <table className="table-simple">
+                    <thead>
+                      <tr>
+                        <th>Order ID & Date</th>
+                        <th>Customer</th>
+                        <th>Items</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((ord) => (
+                        <tr key={ord._id}>
+                          <td>
+                            <strong>#{ord._id.slice(-6)}</strong>
+                            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                              {new Date(ord.createdAt).toLocaleDateString("en-IN")}
+                            </div>
+                          </td>
+                          <td>
+                            <div><strong>{ord.user?.name || ord.shippingAddress?.name}</strong></div>
+                            <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                              {ord.shippingAddress?.phone}
+                            </div>
+                          </td>
+                          <td>
+                            {ord.items?.map((it, i) => (
+                              <div key={i} style={{ fontSize: 13 }}>
+                                {it.name} (x{it.quantity})
+                              </div>
+                            ))}
+                          </td>
+                          <td>
+                            <strong>₹{ord.totalAmount}</strong>
+                            <div style={{ fontSize: 11, color: "#6b7280" }}>{ord.paymentMethod}</div>
+                          </td>
+                          <td>
+                            <span
+                              className="pill"
+                              style={{
+                                background:
+                                  ord.status === "Delivered" ? "#d1fae5" :
+                                  ord.status === "Shipped" ? "#dbeafe" :
+                                  ord.status === "Processing" ? "#fef3c7" : "#f3f4f6",
+                                color:
+                                  ord.status === "Delivered" ? "#065f46" :
+                                  ord.status === "Shipped" ? "#1e40af" :
+                                  ord.status === "Processing" ? "#92400e" : "#374151",
+                              }}
+                            >
+                              {ord.status}
+                            </span>
+                          </td>
+                          <td>
+                            <select
+                              value={ord.status}
+                              onChange={async (e) => {
+                                const newStatus = e.target.value;
+                                try {
+                                  await api.put(`/admin/orders/${ord._id}/status`, { status: newStatus });
+                                  loadAll();
+                                } catch (err) {
+                                  alert("Failed to update status");
+                                }
+                              }}
+                              style={{ padding: "4px 8px", borderRadius: "6px", fontSize: "12px" }}
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Processing">Processing</option>
+                              <option value="Shipped">Shipped</option>
+                              <option value="Delivered">Delivered</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p>No orders placed yet.</p>
+              )}
+            </div>
+          )}
 
           {activeSection === "messages" && (
             <div className="dashboard-card">
@@ -1219,6 +1695,162 @@ export default function AdminDashboard() {
                   No customer enquiries yet.
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Edit Product Modal */}
+          {editingProduct && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2000,
+                padding: "20px",
+              }}
+              onClick={() => setEditingProduct(null)}
+            >
+              <div
+                className="dashboard-card"
+                style={{
+                  maxWidth: "600px",
+                  width: "100%",
+                  maxHeight: "90vh",
+                  overflowY: "auto",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 20,
+                  }}
+                >
+                  <h3 style={{ color: "var(--leaf-dark)", margin: 0 }}>
+                    Edit Product
+                  </h3>
+                  <button
+                    type="button"
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      fontSize: "24px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setEditingProduct(null)}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {editMsg && (
+                  <div className={`form-msg ${editMsg.type}`}>
+                    {editMsg.text}
+                  </div>
+                )}
+
+                <form onSubmit={handleUpdateProduct} encType="multipart/form-data">
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Product Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={editForm.name}
+                        onChange={updateEditField("name")}
+                      />
+                    </div>
+
+                    <div className="field">
+                      <label>Category</label>
+                      <select
+                        value={editForm.cat}
+                        onChange={updateEditField("cat")}
+                        required
+                      >
+                        {CATEGORY_OPTIONS.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Price (₹)</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        step="0.01"
+                        value={editForm.price}
+                        onChange={updateEditField("price")}
+                      />
+                    </div>
+
+                    <div className="field">
+                      <label>Unit / Pack Size</label>
+                      <input
+                        type="text"
+                        required
+                        value={editForm.unit}
+                        onChange={updateEditField("unit")}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label>Short Description</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.desc}
+                      onChange={updateEditField("desc")}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label>Replace Images (Optional)</label>
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      multiple
+                      onChange={(e) => {
+                        setEditImages(Array.from(e.target.files || []));
+                      }}
+                    />
+                    <small style={{ display: "block", marginTop: 7, color: "#6b7280" }}>
+                      Leave empty to keep existing images. Max 5 images.
+                    </small>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={updatingProduct}
+                    >
+                      {updatingProduct ? "Saving..." : "Save Changes"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn btn-outline-dark"
+                      disabled={updatingProduct}
+                      onClick={() => setEditingProduct(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 

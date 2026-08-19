@@ -17,6 +17,10 @@ export default function AdminSidebar({
       label: "Products",
     },
     {
+      key: "orders",
+      label: "Orders",
+    },
+    {
       key: "customers",
       label: "Customers",
     },

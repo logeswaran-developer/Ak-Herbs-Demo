@@ -68,16 +68,19 @@ router.get('/me', protect, requireAdmin, async (req, res) => {
   res.json({ admin });
 });
 
+const Order = require('../models/Order');
+
 // GET /api/admin/stats  — dashboard counters
 router.get('/stats', protect, requireAdmin, async (req, res) => {
   try {
-    const [products, users, admins, messages] = await Promise.all([
+    const [products, users, admins, messages, orders] = await Promise.all([
       Product.countDocuments(),
       User.countDocuments(),
       Admin.countDocuments(),
       Contact.countDocuments(),
+      Order.countDocuments(),
     ]);
-    res.json({ products, users, admins, messages, orders: 0 });
+    res.json({ products, users, admins, messages, orders });
   } catch (err) {
     res.status(500).json({ message: 'Server error.', error: err.message });
   }
@@ -92,5 +95,28 @@ router.get('/users', protect, requireAdmin, async (req, res) => {
     res.status(500).json({ message: 'Server error.', error: err.message });
   }
 });
+
+// GET /api/admin/orders — list all customer orders
+router.get('/orders', protect, requireAdmin, async (req, res) => {
+  try {
+    const orders = await Order.find().populate('user', 'name email phone').sort({ createdAt: -1 });
+    res.json({ orders });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
+// PUT /api/admin/orders/:id/status — update order status
+router.put('/orders/:id/status', protect, requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!order) return res.status(404).json({ message: 'Order not found.' });
+    res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
+});
+
 
 module.exports = router;

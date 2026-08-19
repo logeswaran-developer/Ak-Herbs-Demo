@@ -15,6 +15,9 @@ import AdminRegister from './pages/AdminRegister';
 import Account from './pages/Account';
 import AdminDashboard from './pages/AdminDashboard';
 
+import Cart from './pages/Cart';
+import Orders from './pages/Orders';
+
 export default function App() {
   const location = useLocation();
 
@@ -38,6 +41,24 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Account />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/cart"
+        element={
+          <ProtectedRoute>
+            <Cart />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/orders"
+        element={
+          <ProtectedRoute>
+            <Orders />
           </ProtectedRoute>
         }
       />
