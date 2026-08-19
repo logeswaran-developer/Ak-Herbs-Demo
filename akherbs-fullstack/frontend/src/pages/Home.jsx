@@ -1,30 +1,67 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
 import HeroCarousel from '../components/HeroCarousel';
+import '../styles/HomeCategories.css';
 
-const CATEGORIES = [
-  {
-    name: 'Nuts & Dry Fruits',
-    image: '/images/categories/nuts-dry-fruits.jpg',
-  },
-  {
-    name: 'Herbal Products',
-    image: '/images/categories/herbal-products.jpg',
-  },
-  {
-    name: 'Herbal Soap',
-    image: '/images/categories/herbal-soap.jpg',
-  },
-  {
-    name: 'Wellness Syrups',
-    image: '/images/categories/wellness-syrups.jpg',
-  },
-];
+const getCategoryImageUrl = (imagePath) => {
+  if (!imagePath) return '';
 
+  if (
+    imagePath.startsWith('http://') ||
+    imagePath.startsWith('https://')
+  ) {
+    return imagePath;
+  }
+
+  const apiUrl = import.meta.env.VITE_API_URL;
+
+  // Production / absolute backend URL
+  if (apiUrl?.startsWith('http')) {
+    const serverBase = apiUrl.replace(
+      /\/api\/?$/,
+      ''
+    );
+
+    return `${serverBase}${imagePath}`;
+  }
+
+  // Local development
+  return `http://localhost:5000${imagePath}`;
+};
 export default function Home() {
   const { session } = useAuth();
 
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
   const isAdmin = session?.role === 'admin';
+
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        setCategoriesLoading(true);
+
+        const response = await api.get('/categories');
+
+        setCategories(
+          response.data.categories || []
+        );
+      } catch (error) {
+        console.error(
+          'Home categories loading error:',
+          error
+        );
+
+        setCategories([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+
+    loadCategories();
+  }, []);
 
   return (
     <>
@@ -61,46 +98,51 @@ export default function Home() {
         </section>
       )}
 
-      {/* SHOP BY CATEGORY */}
-      <section className="section">
-        <div className="wrap">
-          <div className="section-head">
-            <span className="eyebrow">
-              Shop by Category
-            </span>
+     {/* SHOP BY CATEGORY */}
+      <section className="home-categories">
+        <div className="home-categories-container">
 
-            <h2>
-              Everything for a wholesome routine
-            </h2>
+          <div className="home-categories-heading">
+            <h2>Shop by Category</h2>
+            <span>❧</span>
+          </div>
 
-            <p>
-              Hand-picked nuts, traditional herbal formulations,
-              and gentle skincare — all under one roof.
+          {categoriesLoading ? (
+            <p className="home-category-status">
+              Loading categories...
             </p>
-          </div>
+          ) : categories.length > 0 ? (
+            <div className="home-category-list">
 
-          <div className="grid grid-4">
-            {CATEGORIES.map((c) => (
-              <Link
-                key={c.name}
-                to={`/product?cat=${encodeURIComponent(c.name)}`}
-                className="cat-card"
-              >
-                <div className="thumb">
-                  <img
-                    src={c.image}
-                    alt={c.name}
-                    loading="lazy"
-                  />
-                </div>
+              {categories.map((category) => (
+                <Link
+                  key={category._id}
+                  to={`/product?cat=${encodeURIComponent(
+                    category.name
+                  )}`}
+                  className="home-category-item"
+                >
+                  <div className="home-category-image">
+                    <img
+                      src={getCategoryImageUrl(
+                        category.image
+                      )}
+                      alt={category.name}
+                      loading="lazy"
+                    />
+                  </div>
 
-                <div className="body">
-                  <h3>{c.name}</h3>
-                  <span>Shop now</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <h3>{category.name}</h3>
+                </Link>
+              ))}
+
+            </div>
+          ) : (
+            <p className="home-category-status">
+              No categories available.
+            </p>
+          )}
+
         </div>
       </section>
 
